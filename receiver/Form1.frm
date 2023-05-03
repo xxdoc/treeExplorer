@@ -136,7 +136,7 @@ Begin VB.Form Form1
          EndProperty
          BeginProperty ListImage9 {2C247F27-8591-11D1-B16A-00C0F0283628} 
             Picture         =   "Form1.frx":268C
-            Key             =   "prop"
+            Key             =   "pag"
          EndProperty
          BeginProperty ListImage10 {2C247F27-8591-11D1-B16A-00C0F0283628} 
             Picture         =   "Form1.frx":2C26
@@ -196,7 +196,7 @@ Begin VB.Form Form1
             Caption         =   "Folder"
          End
          Begin VB.Menu mnuAddFile 
-            Caption         =   "File"
+            Caption         =   "Files"
          End
       End
       Begin VB.Menu mnuRemoveItem 
@@ -216,22 +216,13 @@ Attribute ipc.VB_VarHelpID = -1
 Private WithEvents saveTree As CSaveTree
 Attribute saveTree.VB_VarHelpID = -1
 
-'https://www.developerfusion.com/article/77/treeview-control/8/
+'template for dragging nodes around: https://www.developerfusion.com/article/77/treeview-control/8/
 
 
 Private Declare Sub Sleep Lib "kernel32" (ByVal dwMilliseconds As Long)
-
-
-'// variable that tells us if
-'// we are dragging (ie the user is dragging a node from this treeview control
-'// or not (ie the user is trying to drag an object from another
-'// control and/or program)
 Private blnDragging As Boolean
 Private selNode As Node
-Dim dlg As New CCmnDlg
-Dim fso As New CFileSystem2
 Dim memfile As New CMemMapFile
-
 Dim projPath As String
 
 Private Sub cmdClearList_Click()
@@ -472,6 +463,7 @@ Private Sub mnuAddFolder_Click()
         On Error Resume Next
         Dim f As String, p As Node, fn As String
         
+        If tv.Nodes.Count = 0 Then Exit Sub
         If selNode Is Nothing Then selNode = tv.Nodes(1)
         
         f = dlg.FolderDialog2()
@@ -483,93 +475,51 @@ Private Sub mnuAddFolder_Click()
             
 End Sub
 
-Function AddFolderToTree(f As String, p As Node, Optional recursive As Boolean = True)
+Private Sub mnuAddFile_Click()
+
+        On Error Resume Next
+        Dim x, p As Node, fn As String, c As Collection
+        
+        If tv.Nodes.Count = 0 Then Exit Sub
+        If selNode Is Nothing Then selNode = tv.Nodes(1)
+        
+        Set c = dlg.OpenMulti()
+        If c.Count = 0 Then Exit Sub
+
+        For Each x In c
+            AddNodeFromFile selNode, x
+        Next
+        
+End Sub
+
+Function AddFolderToTree(ByVal folder As String, p As Node, Optional recursive As Boolean = True)
     
-        Dim ff() As String, x, n As Node, bn As String, pp As Node, fn As String, icon As String
+        Dim ff() As String, x, bn As String, pp As Node
         
-        If Not fso.FolderExists(f) Then Exit Function
+        If Not fso.FolderExists(folder) Then Exit Function
         
-        fn = fso.FolderName(f)
-        ff = fso.GetFolderFiles(f)
+        'fn = fso.FolderName(f)
+        ff = fso.GetFolderFiles(folder)
         p.Expanded = True
         
         For Each x In ff
-            bn = fso.FileNameFromPath(CStr(x))
-            If fileTypeOk(x, icon) Then
-                Set n = tv.Nodes.Add(p, tvwChild, x, bn, icon)
-                If Err.Number <> 0 Then
-                    Debug.Print "failed to add " & bn & " " & Err.Description
-                    Err.Clear
-                Else
-                    n.tag = x
-                End If
-            End If
+            AddNodeFromFile p, x
         Next
         
         If recursive Then
-            ff = fso.GetSubFolders(f)
+            ff = fso.GetSubFolders(folder)
             If Not AryIsEmpty(ff) Then
                 For Each x In ff
                     bn = fso.FolderName(CStr(x))
                     Set pp = tv.Nodes.Add(p, tvwChild, x, bn, "folder")
                     pp.Expanded = True
-                    AddFolderToTree CStr(x), pp
-                    
+                    AddFolderToTree x, pp
                 Next
             End If
         End If
         
         
 End Function
-
-
-Function AryIsEmpty(ary) As Boolean
-  On Error GoTo oops
-    Dim i As Long
-    i = UBound(ary)  '<- throws error if not initalized
-    AryIsEmpty = False
-  Exit Function
-oops: AryIsEmpty = True
-End Function
-
-Function fileTypeOk(f, ByRef icon As String) As Boolean
-    
-    Dim ext As String
-    icon = Empty
-    ext = LCase(fso.GetExtension(f))
-    
-    Select Case ext
-        Case ".frm": icon = "frm"
-        Case ".bas": icon = "bas"
-        Case ".cls": icon = "cls"
-        Case ".dob": icon = "dob"
-        Case ".ctl": icon = "ctl"
-        'Case ".dsr": icon = "dsr"
-    End Select
-    
-    If Len(icon) > 0 Then fileTypeOk = True
-    
-End Function
-
-
- 
- 
-
-Sub AllNodesUnder(ByVal n As Node, c As Collection)
-    
-    Dim nn As Node
-    c.Add n
-    
-    For Each nn In tv.Nodes
-        If Not nn.Parent Is Nothing Then
-            If nn.Parent = n Then
-                c.Add nn
-                If nn.Children > 0 Then AllNodesUnder nn, c
-            End If
-        End If
-    Next
-    
-End Sub
     
 Private Sub mnuAddGroup_Click()
     On Error Resume Next
@@ -684,15 +634,45 @@ Private Sub tv_OLEDragOver(Data As MSComctlLib.DataObject, Effect As Long, Butto
     
 End Sub
 
+Function AddNodeFromFile(p As Node, ByVal fpath As String) As Boolean
+    
+    Dim vbc As New CVBComponent
+    Dim n As Node
+    
+    If Not vbc.loadFromFile(fpath) Then
+        List1.AddItem "AddNodeFromFile failed: " & fpath
+        Exit Function
+    End If
+    
+    If NodeExists(vbc.name) Then
+        List1.AddItem vbc.name & " already exists in tree: " & fpath
+        Exit Function
+    End If
+    
+    Set n = tv.Nodes.Add(p, tvwChild, vbc.name, vbc.name, vbc.icon)
+    Set vbc.n = n
+    Set n.tag = vbc
+    
+    'this will trigger an IPC Component|Added message, but our node will already exist so it will be ignored with warning in list1
+    ipc.Send "addfile:" & fpath
+    
+    AddNodeFromFile = True
+            
+End Function
+
 '// occurs when the user drops the object
 '// this is where you move the node and its children.
 '// this will not occur if Effect = vbDropEffectNone
 Private Sub tv_OLEDragDrop(Data As MSComctlLib.DataObject, Effect As Long, Button As Integer, shift As Integer, x As Single, y As Single)
+    
+    On Error Resume Next
+    
     Dim strSourceKey As String
     Dim nodTarget    As Node
-     Dim f As String, fn As String, p As Node, icon As String
+    Dim f As String, fn As String, p As Node, icon As String
+    Dim cn As String, vbc As CVBComponent
      
-     '// get the target node
+    
     Set nodTarget = tv.HitTest(x, y)
     
     '// if the target node is not a folder or the root item
@@ -702,26 +682,21 @@ Private Sub tv_OLEDragDrop(Data As MSComctlLib.DataObject, Effect As Long, Butto
     'End If
     
     If Data.GetFormat(vbCFText) Then
-        strSourceKey = Data.GetData(vbCFText) '// get the carried data
-        Set tv.Nodes(strSourceKey).Parent = nodTarget '// move the source node to the target node
+        
+        'internal drag to rearrange nodes
+        strSourceKey = Data.GetData(vbCFText)
+        Set tv.Nodes(strSourceKey).Parent = nodTarget
+        
     ElseIf Data.GetFormat(vbCFFiles) Then
         
         f = Data.Files(1)
-        If NodeExists(f) Then
-            MsgBox "This path already exists in tree"
-            Exit Sub
-        End If
         
         If fso.FolderExists(f) Then
             fn = fso.FolderName(f)
             Set p = tv.Nodes.Add(nodTarget, tvwChild, f, fn, "folder")
             AddFolderToTree f, p
         Else
-            fn = fso.FileNameFromPath(CStr(f))
-            If fileTypeOk(f, icon) Then
-                Set p = tv.Nodes.Add(nodTarget, tvwChild, f, fn, icon)
-                p.tag = f
-            End If
+            AddNodeFromFile nodTarget, f
         End If
     End If
     

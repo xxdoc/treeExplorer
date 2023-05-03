@@ -47,3 +47,14 @@ Function loadFromEvent(e As CComponentEvent)
     icon = icn
     
 End Function
+
+Function loadFromFile(ByVal fPath As String) As Boolean
+    On Error Resume Next
+    Dim icn As String
+    path = fPath
+    Typ = typeFromPath(fPath)
+    name = PreloadComponentName(fPath)
+    defFolder = DefaultFolderForType(Typ, icn)
+    icon = icn
+    loadFromFile = (Typ <> 0)
+End Function

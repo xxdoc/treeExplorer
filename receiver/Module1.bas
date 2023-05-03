@@ -1,6 +1,9 @@
 Attribute VB_Name = "Module1"
 Option Explicit
 
+Global fso As New CFileSystem2
+Global dlg As New CCmnDlg
+
 Function PreloadComponentName(fpath As String) As String
     'Attribute VB_Name = "Connect"
     On Error GoTo hell
@@ -14,6 +17,8 @@ Function PreloadComponentName(fpath As String) As String
         x = fs.ReadLine
         If InStr(x, marker) > 0 Then
             x = Replace(x, marker, Empty)
+            x = Replace(x, vbCr, Empty)
+            x = Replace(x, vbLf, Empty)
             x = Trim(Replace(x, """", Empty))
             PreloadComponentName = x
             fs.fClose
@@ -24,6 +29,32 @@ Function PreloadComponentName(fpath As String) As String
 hell:
            
 End Function
+
+Function AryIsEmpty(ary) As Boolean
+  On Error GoTo oops
+    Dim i As Long
+    i = UBound(ary)  '<- throws error if not initalized
+    AryIsEmpty = False
+  Exit Function
+oops: AryIsEmpty = True
+End Function
+ 
+
+Sub AllNodesUnder(ByVal n As Node, c As Collection)
+    
+    Dim nn As Node
+    c.Add n
+    
+    For Each nn In Form1.tv.Nodes
+        If Not nn.Parent Is Nothing Then
+            If nn.Parent = n Then
+                c.Add nn
+                If nn.Children > 0 Then AllNodesUnder nn, c
+            End If
+        End If
+    Next
+    
+End Sub
 
 Function keyExistsInCollection(key As String, c As Collection, Optional isObj As Boolean = True) As Boolean
     On Error Resume Next
@@ -95,7 +126,12 @@ Function HandleComponentEvent(e As CComponentEvent, Optional createMissing As Bo
                 Set p = Form1.tv.Nodes.Add(Form1.tv.Nodes(1), tvwChild, c.defFolder, c.defFolder, "folder")
             End If
             
-            Set c.n = Form1.tv.Nodes.Add(p, tvwChild, c.name, c.name, c.icon)
+            If NodeExists(c.name) Then
+                Form1.List1.AddItem "HandleComponentEvent Node exists: " & e.raw
+            Else
+                Set c.n = Form1.tv.Nodes.Add(p, tvwChild, c.name, c.name, c.icon)
+                Set c.n.tag = c
+            End If
         End If
     End If
 
@@ -115,6 +151,32 @@ End Function
 '    vbext_ct_RelatedDocument = &HA
 '    vbext_ct_ActiveXDesigner = &HB
 'End Enum
+
+Function typeFromPath(fpath As String) As Long
+
+    On Error Resume Next
+    Dim ext As String, i As Long
+    
+    ext = LCase(fso.GetExtension(fpath))
+    If Left(ext, 1) = "." Then ext = Mid(ext, 2)
+    
+    Select Case ext
+        Case "bas": i = 1
+        Case "cls": i = 2
+        Case "frm": i = 3
+        Case "res": i = 4
+        Case "frm": i = 5
+        Case "mdi": i = 6
+        Case "pag": i = 7
+        Case "ctl": i = 8
+        Case "dob": i = 9
+        Case "txt": i = 10
+        Case "dsr": i = 11
+    End Select
+      
+    typeFromPath = i
+    
+End Function
 
 Function DefaultFolderForType(t As Long, Optional ByRef icon As String) As String
     On Error Resume Next
@@ -140,7 +202,7 @@ Function DefaultFolderForType(t As Long, Optional ByRef icon As String) As Strin
                 icon = "mdi"
 
         Case 7: tn = "Property Pages"
-                icon = "prop"
+                icon = "pag"
 
         Case 8: tn = "User Controls"
                 icon = "ctl"

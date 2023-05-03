@@ -43,12 +43,12 @@ Attribute mComponentEvents.VB_VarHelpID = -1
 
 Private Declare Function FindWindowEx Lib "user32" Alias "FindWindowExA" (ByVal hWnd1 As Long, ByVal hWnd2 As Long, ByVal lpsz1 As String, ByVal lpsz2 As String) As Long
 
-'Private Sub AddinInstance_OnStartupComplete(custom() As Variant)
-'    On Error Resume Next
-'    mProjectLoaded = True
-'    mainProjPath = VBInstance.ActiveVBProject.FileName
-'    ipc.Send "AddinInstance_OnStartupComplete:" & mainProjPath
-'End Sub
+Private Sub AddinInstance_OnStartupComplete(custom() As Variant)
+    On Error Resume Next
+    mProjectLoaded = True
+    mainProjPath = VBInstance.ActiveVBProject.FileName
+    ipc.Send "AddinInstance_OnStartupComplete:" & mainProjPath
+End Sub
 
 Private Sub MenuHandler_Click(ByVal CommandBarControl As Object, handled As Boolean, CancelDefault As Boolean)
     'right now just showing internal debug message form, todo: show external tree explorer
@@ -188,12 +188,12 @@ Private Sub AddinInstance_OnConnection(ByVal Application As Object, ByVal Connec
     Dim e1 As String
     Dim hWnd As Long
      
-   If ConnectMode = ext_cm_AfterStartup Then
-        mProjectLoaded = True
-        mainProjPath = VBInstance.ActiveVBProject.FileName
-        ipc.Send "AddinInstance_OnStartupComplete:" & mainProjPath
-        Exit Sub
-   End If
+'   If ConnectMode = ext_cm_AfterStartup Then
+'        mProjectLoaded = True
+'        mainProjPath = VBInstance.ActiveVBProject.FileName
+'        ipc.Send "AddinInstance_OnStartupComplete:" & mainProjPath
+'        Exit Sub
+'   End If
    
    If ConnectMode = ext_cm_Startup Then
          
